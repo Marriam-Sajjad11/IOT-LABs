@@ -6,7 +6,7 @@ import utime  # Import time module for delays
 # ---------------------- Task 1: Displaying Temperature & Humidity on OLED ----------------------
 
 # Initialize I2C for OLED (Modify pins according to your board)
-i2c = I2C(0, scl=Pin(5), sda=Pin(4))  # Raspberry Pi Pico (Use GPIO 5 for SCL, GPIO 4 for SDA)
+i2c = I2C(0, scl=Pin(8), sda=Pin(9))  # Raspberry Pi Pico (Use GPIO 5 for SCL, GPIO 4 for SDA)
 oled = ssd1306.SSD1306_I2C(128, 64, i2c)  # Initialize the OLED display with 128x64 resolution
 
 # Initialize DHT11 sensor for temperature and humidity
