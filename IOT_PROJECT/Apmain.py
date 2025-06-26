@@ -3,20 +3,19 @@ import socket
 import dht
 import machine
 import ssd1306  # OLED library
+from neopixel import NeoPixel  # Import NeoPixel library
 
-# WiFi Configuration
-SSID = "NTU FSD"
-PASSWORD = ""
+# WiFi Access Point Configuration
+SSID = "ESP32_AP"
+PASSWORD = "12345678"  # Minimum 8 characters required
 
-# Initialize WiFi in Station Mode
-wifi = network.WLAN(network.STA_IF)
+# Initialize WiFi in AP Mode
+wifi = network.WLAN(network.AP_IF)
 wifi.active(True)
-wifi.connect(SSID, PASSWORD)
+wifi.config(essid=SSID, password=PASSWORD)
 
-while not wifi.isconnected():
-    pass  # Wait for connection
-
-print("Connected! IP Address:", wifi.ifconfig()[0])
+print("Access Point Created!")
+print("AP IP Address:", wifi.ifconfig()[0])
 
 # Initialize DHT11 Sensor
 dht_pin = machine.Pin(4)  # GPIO4
@@ -27,8 +26,6 @@ i2c = machine.SoftI2C(scl=machine.Pin(9), sda=machine.Pin(8))
 oled = ssd1306.SSD1306_I2C(128, 64, i2c)
 
 # Initialize RGB LED (Built-in NeoPixel)
-from neopixel import NeoPixel  # Import NeoPixel library
-
 rgb_pin = machine.Pin(48, machine.Pin.OUT)  # Change pin if needed
 rgb_led = NeoPixel(rgb_pin, 1)  # Only 1 LED on ESP32
 
@@ -52,7 +49,6 @@ def update_oled(temp, hum, r, g, b):
     oled.text("RGB: R{} G{} B{}".format(r, g, b), 0, 30)
     oled.show()
 
-# HTML Web Page
 # HTML Web Page
 def generate_webpage(temp, hum):
     return """ 
@@ -139,14 +135,12 @@ def generate_webpage(temp, hum):
     </html>
     """
 
-
-
-# Start Web Server
+# Start Web Server in AP Mode
 server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 server.bind(('', 80))
 server.listen(5)
 
-print("Web Server Started! Access it via browser.")
+print("Web Server Started! Connect to '{}' and visit '192.168.4.1'".format(SSID))
 
 while True:
     conn, addr = server.accept()

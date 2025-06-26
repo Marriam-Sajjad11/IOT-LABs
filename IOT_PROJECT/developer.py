@@ -3,10 +3,11 @@ import socket
 import dht
 import machine
 import ssd1306  # OLED library
+import time
 
-# WiFi Configuration
-SSID = "NTU FSD"
-PASSWORD = ""
+# WiFi Configuration (Replace with your WiFi credentials)
+SSID = "YourWiFiSSID"
+PASSWORD = "YourWiFiPassword"
 
 # Initialize WiFi in Station Mode
 wifi = network.WLAN(network.STA_IF)
@@ -22,20 +23,15 @@ print("Connected! IP Address:", wifi.ifconfig()[0])
 dht_pin = machine.Pin(4)  # GPIO4
 dht_sensor = dht.DHT11(dht_pin)
 
-# Initialize OLED Display (SSD1306)
+# Initialize OLED Display
 i2c = machine.SoftI2C(scl=machine.Pin(9), sda=machine.Pin(8))  
 oled = ssd1306.SSD1306_I2C(128, 64, i2c)
 
-# Initialize RGB LED (Built-in NeoPixel)
-from neopixel import NeoPixel  # Import NeoPixel library
+# Initialize Buzzer
+buzzer = machine.Pin(5, machine.Pin.OUT)  # GPIO5 for buzzer
 
-rgb_pin = machine.Pin(48, machine.Pin.OUT)  # Change pin if needed
-rgb_led = NeoPixel(rgb_pin, 1)  # Only 1 LED on ESP32
-
-# Function to Set RGB Color
-def set_rgb_color(r, g, b):
-    rgb_led[0] = (r, g, b)
-    rgb_led.write()
+# Default Alarm Status
+alarm_active = False
 
 # Function to Read Temperature & Humidity
 def get_sensor_data():
@@ -45,21 +41,30 @@ def get_sensor_data():
     return temp, hum
 
 # Function to Update OLED Display
-def update_oled(temp, hum, r, g, b):
+def update_oled(temp, hum, alarm):
     oled.fill(0)  # Clear screen
     oled.text("Temp: {} C".format(temp), 0, 0)
     oled.text("Humidity: {}%".format(hum), 0, 10)
-    oled.text("RGB: R{} G{} B{}".format(r, g, b), 0, 30)
+    if alarm:
+        oled.text("ALARM ON!", 0, 30)
+    else:
+        oled.text("System Normal", 0, 30)
     oled.show()
 
+# Function to Control Buzzer
+def activate_buzzer(state):
+    if state:
+        buzzer.value(1)
+    else:
+        buzzer.value(0)
+
 # HTML Web Page
-# HTML Web Page
-def generate_webpage(temp, hum):
+def generate_webpage(temp, hum, alarm):
     return """ 
     <!DOCTYPE html>
     <html>
     <head>
-        <title>ESP32 Web Server</title>
+        <title>ESP32 Buzzer Alert</title>
         <style>
             body { 
                 font-family: Arial, sans-serif; 
@@ -89,16 +94,6 @@ def generate_webpage(temp, hum):
                 font-size: 22px;
                 margin: 10px 0;
             }
-            input {
-                padding: 12px;
-                font-size: 16px;
-                border: none;
-                border-radius: 8px;
-                text-align: center;
-                width: 80px;
-                margin: 5px;
-                outline: none;
-            }
             button {
                 padding: 12px 20px;
                 font-size: 18px;
@@ -113,11 +108,12 @@ def generate_webpage(temp, hum):
             button:hover {
                 background: #e68900;
             }
+            .alert {color: #ff0000; font-weight: bold;}
         </style>
     </head>
     <body>
         <div class="container">
-            <h1>ESP32 RGB LED & Sensor Web Server</h1>
+            <h1>ESP32 Buzzer Alert System</h1>
             
             <div class="card">
                 <h2> Temperature: """ + str(temp) + """°C</h2>
@@ -125,21 +121,14 @@ def generate_webpage(temp, hum):
             </div>
 
             <div class="card">
-                <h3> Set RGB Color</h3>
-                <form action="/" method="GET">
-                    <input type="number" name="r" placeholder="Red (0-255)" min="0" max="255">
-                    <input type="number" name="g" placeholder="Green (0-255)" min="0" max="255">
-                    <input type="number" name="b" placeholder="Blue (0-255)" min="0" max="255">
-                    <br><br>
-                    <button type="submit">Set Color</button>
-                </form>
+                <h3> Alarm Status: """ + ("<span class='alert'>ON</span>" if alarm else "OFF") + """</h3>
+                <a href="/?alarm=on"><button>Turn Alarm ON</button></a>
+                <a href="/?alarm=off"><button>Turn Alarm OFF</button></a>
             </div>
         </div>
     </body>
     </html>
     """
-
-
 
 # Start Web Server
 server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -154,25 +143,26 @@ while True:
     
     request = conn.recv(1024).decode()
     
-    # Parse RGB Values
-    r, g, b = 0, 0, 0  # Default values
-    if "GET /?" in request:
-        try:
-            params = request.split(" ")[1].split("?")[1].split("&")
-            r = int(params[0].split("=")[1])
-            g = int(params[1].split("=")[1])
-            b = int(params[2].split("=")[1])
-            set_rgb_color(r, g, b)
-        except:
-            pass
-    
+    # Check for Alarm Control in Request
+    global alarm_active
+    if "GET /?alarm=on" in request:
+        alarm_active = True
+    elif "GET /?alarm=off" in request:
+        alarm_active = False
+
     # Get Sensor Data
     temp, hum = get_sensor_data()
 
+    # Activate Buzzer if Alarm is ON & Conditions Are Met
+    if alarm_active and (temp > 30 or hum > 80):
+        activate_buzzer(True)
+    else:
+        activate_buzzer(False)
+
     # Update OLED Display
-    update_oled(temp, hum, r, g, b)
+    update_oled(temp, hum, alarm_active)
 
     # Send Webpage Response
-    response = generate_webpage(temp, hum)
+    response = generate_webpage(temp, hum, alarm_active)
     conn.send("HTTP/1.1 200 OK\nContent-Type: text/html\n\n" + response)
     conn.close()

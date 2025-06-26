@@ -1,8 +1,8 @@
 import network
 import time
 
-WIFI_SSID = "StormFiber-4cd8"
-WIFI_PASS = "03326552418"
+WIFI_SSID = "Fama"
+WIFI_PASS = "meme0000"
 
 def connect_wifi():
     wlan = network.WLAN(network.STA_IF)
